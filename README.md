@@ -1,2 +1,2 @@
 # curso-procesos
-Curso con autoevaluación sobre conocimiento de gestión de procesos
+Curso con autoevaluación sobre fundamentos de consultoría de procesos
