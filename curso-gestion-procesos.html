@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestión de Procesos para Consultores</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    if (window.tailwind) tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            navy: {
+              50: '#f0f4fa', 100: '#dce5f2', 200: '#b9cbe5', 300: '#8eaad3', 400: '#5b7fb5',
+              500: '#3b5f99', 600: '#24477f', 700: '#1b3a6b', 800: '#152d54', 900: '#0f213f'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body { -webkit-font-smoothing: antialiased; }
+    .prose-course p { line-height: 1.7; }
+    .table-course th { text-align: left; }
+    .fade-in { animation: fadeIn .35s ease-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    input[type="radio"] { accent-color: #1b3a6b; }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans min-h-screen">
+
+  <!-- Encabezado fijo con progreso -->
+  <header class="sticky top-0 z-20 bg-navy-900 text-white shadow-lg">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3">
+      <div class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <p class="text-[11px] uppercase tracking-widest text-navy-200">Autocurso interactivo</p>
+          <h1 class="text-base sm:text-lg font-semibold truncate">Gestión de Procesos para Consultores</h1>
+        </div>
+        <div class="text-right shrink-0">
+          <p id="progressLabel" class="text-sm font-semibold">Módulo 1 de 10</p>
+          <p id="scoreLabel" class="text-[11px] text-navy-200">Puntaje acumulado: 0 / 30</p>
+        </div>
+      </div>
+      <div class="mt-3 h-2 w-full rounded-full bg-navy-700 overflow-hidden" role="progressbar" aria-valuemin="0" aria-valuemax="10" id="progressBarWrap">
+        <div id="progressBar" class="h-full bg-white rounded-full transition-all duration-500" style="width: 10%"></div>
+      </div>
+      <nav id="moduleDots" class="mt-3 flex flex-wrap gap-1.5" aria-label="Navegación por módulos"></nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+    <article id="moduleContainer" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-8 lg:p-10"></article>
+
+    <!-- Navegación inferior -->
+    <div class="mt-6 flex items-center justify-between gap-3">
+      <button id="prevBtn" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl border border-slate-300 bg-white text-slate-700 font-medium hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+        ← Anterior
+      </button>
+      <p id="navHint" class="hidden sm:block text-sm text-slate-500 text-center"></p>
+      <button id="nextBtn" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-navy-800 text-white font-medium hover:bg-navy-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition">
+        Siguiente módulo →
+      </button>
+    </div>
+    <p id="navHintMobile" class="sm:hidden mt-3 text-sm text-slate-500 text-center"></p>
+  </main>
+
+  <footer class="text-center text-xs text-slate-400 pb-8">Autocurso de Gestión de Procesos · El progreso se guarda solo mientras la página esté abierta.</footer>
+
+<script>
+/* =========================================================
+   Helpers de contenido
+   ========================================================= */
+const LETTERS = ['A', 'B', 'C', 'D'];
+
+function callout(text, tone = 'navy') {
+  const tones = {
+    navy: 'bg-navy-50 border-navy-700 text-navy-900',
+    amber: 'bg-amber-50 border-amber-500 text-amber-900',
+    green: 'bg-emerald-50 border-emerald-600 text-emerald-900'
+  };
+  return `<div class="my-6 border-l-4 rounded-r-xl px-5 py-4 ${tones[tone]}">${text}</div>`;
+}
+
+function h3(text) {
+  return `<h3 class="text-lg sm:text-xl font-semibold text-navy-900 mt-8 mb-3">${text}</h3>`;
+}
+
+/* Diagrama circular del ciclo de mejora (Módulo 7) */
+function cycleSVG() {
+  const steps = [
+    { t: ['Relevamiento'], e: '🔍' },
+    { t: ['Diagnóstico'], e: '🩺' },
+    { t: ['Diseño'], e: '✏️' },
+    { t: ['Implemen-', 'tación'], e: '🚀' },
+    { t: ['Medición'], e: '📏' },
+    { t: ['Ajuste'], e: '🔧' }
+  ];
+  const cx = 220, cy = 220, R = 150, r = 48;
+  const n = steps.length;
+  const toXY = (deg, rad) => [cx + rad * Math.cos(deg * Math.PI / 180), cy + rad * Math.sin(deg * Math.PI / 180)];
+  let arcs = '', nodes = '';
+  const gap = 23; // grados que ocupa cada nodo sobre el círculo
+  for (let i = 0; i < n; i++) {
+    const a = -90 + i * (360 / n);
+    const b = -90 + (i + 1) * (360 / n);
+    const [x1, y1] = toXY(a + gap, R);
+    const [x2, y2] = toXY(b - gap, R);
+    arcs += `<path d="M ${x1.toFixed(1)} ${y1.toFixed(1)} A ${R} ${R} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}" fill="none" stroke="#5b7fb5" stroke-width="3" marker-end="url(#arrowCycle)"/>`;
+    const [nx, ny] = toXY(a, R);
+    const s = steps[i];
+    const lines = s.t.map((line, li) => `<text x="${nx.toFixed(1)}" y="${(ny + 12 + li * 13 - (s.t.length - 1) * 5).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="600" fill="#ffffff">${line}</text>`).join('');
+    nodes += `<g><circle cx="${nx.toFixed(1)}" cy="${ny.toFixed(1)}" r="${r}" fill="#152d54" stroke="#ffffff" stroke-width="3"/>
+      <text x="${nx.toFixed(1)}" y="${(ny - 10 - (s.t.length - 1) * 5).toFixed(1)}" text-anchor="middle" font-size="18">${s.e}</text>${lines}
+      <text x="${nx.toFixed(1)}" y="${(ny - r - 6).toFixed(1)}" text-anchor="middle" font-size="11" fill="#64748b" font-weight="600">${i + 1}</text></g>`;
+  }
+  return `<svg viewBox="0 0 440 440" class="w-full max-w-md mx-auto" role="img" aria-label="Ciclo de trabajo: Relevamiento, Diagnóstico, Diseño, Implementación, Medición, Ajuste">
+    <defs><marker id="arrowCycle" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#5b7fb5"/></marker></defs>
+    <circle cx="${cx}" cy="${cy}" r="78" fill="#f0f4fa" stroke="#dce5f2" stroke-width="2"/>
+    <text x="${cx}" y="${cy - 6}" text-anchor="middle" font-size="15" font-weight="700" fill="#0f213f">Ciclo de</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle" font-size="15" font-weight="700" fill="#0f213f">mejora continua</text>
+    ${arcs}${nodes}
+  </svg>`;
+}
+
+/* Diagrama de flujo con carriles (Módulo 4) */
+const SWIMLANE_SVG = `
+<svg viewBox="0 0 760 330" class="w-full min-w-[640px]" role="img" aria-label="Diagrama de flujo con carriles del proceso de pedido: Cliente, Ventas y Depósito">
+  <defs>
+    <marker id="arrowFlow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#334155"/>
+    </marker>
+  </defs>
+  <!-- Carriles -->
+  <rect x="10" y="10" width="740" height="100" fill="#f8fafc" stroke="#cbd5e1"/>
+  <rect x="10" y="110" width="740" height="100" fill="#ffffff" stroke="#cbd5e1"/>
+  <rect x="10" y="210" width="740" height="100" fill="#f8fafc" stroke="#cbd5e1"/>
+  <rect x="10" y="10" width="100" height="300" fill="#152d54"/>
+  <line x1="10" y1="110" x2="110" y2="110" stroke="#3b5f99"/>
+  <line x1="10" y1="210" x2="110" y2="210" stroke="#3b5f99"/>
+  <text x="60" y="64" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">Cliente</text>
+  <text x="60" y="164" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">Ventas</text>
+  <text x="60" y="264" text-anchor="middle" fill="#fff" font-size="14" font-weight="600">Depósito</text>
+
+  <!-- Inicio -->
+  <ellipse cx="180" cy="60" rx="48" ry="22" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+  <text x="180" y="64" text-anchor="middle" font-size="12" font-weight="600" fill="#14532d">Inicio: pide</text>
+  <line x1="180" y1="82" x2="180" y2="136" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+
+  <!-- Registrar pedido -->
+  <rect x="125" y="138" width="110" height="44" rx="4" fill="#dce5f2" stroke="#1b3a6b" stroke-width="2"/>
+  <text x="180" y="164" text-anchor="middle" font-size="11" font-weight="600" fill="#0f213f">Registrar pedido</text>
+  <line x1="235" y1="160" x2="273" y2="160" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+
+  <!-- Decisión -->
+  <polygon points="330,124 386,160 330,196 274,160" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+  <text x="330" y="164" text-anchor="middle" font-size="12" font-weight="600" fill="#78350f">¿Hay stock?</text>
+
+  <!-- Sí -->
+  <line x1="330" y1="196" x2="330" y2="236" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+  <text x="340" y="222" font-size="12" font-weight="700" fill="#16a34a">Sí</text>
+  <rect x="275" y="238" width="110" height="44" rx="4" fill="#dce5f2" stroke="#1b3a6b" stroke-width="2"/>
+  <text x="330" y="264" text-anchor="middle" font-size="11" font-weight="600" fill="#0f213f">Preparar pedido</text>
+  <line x1="385" y1="260" x2="443" y2="260" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+  <rect x="445" y="238" width="110" height="44" rx="4" fill="#dce5f2" stroke="#1b3a6b" stroke-width="2"/>
+  <text x="500" y="264" text-anchor="middle" font-size="12" font-weight="600" fill="#0f213f">Despachar</text>
+  <polyline points="555,260 680,260 680,84" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+
+  <!-- No -->
+  <line x1="386" y1="160" x2="443" y2="160" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+  <text x="398" y="152" font-size="12" font-weight="700" fill="#dc2626">No</text>
+  <rect x="445" y="138" width="110" height="44" rx="4" fill="#dce5f2" stroke="#1b3a6b" stroke-width="2"/>
+  <text x="500" y="164" text-anchor="middle" font-size="12" font-weight="600" fill="#0f213f">Avisar demora</text>
+  <polyline points="555,160 630,160 630,84" fill="none" stroke="#334155" stroke-width="2" marker-end="url(#arrowFlow)"/>
+
+  <!-- Fin -->
+  <ellipse cx="655" cy="60" rx="52" ry="22" fill="#fee2e2" stroke="#dc2626" stroke-width="2"/>
+  <text x="655" y="64" text-anchor="middle" font-size="12" font-weight="600" fill="#7f1d1d">Fin: recibe</text>
+</svg>`;
+
+/* =========================================================
+   Contenido de los módulos
+   ========================================================= */
+const MODULES = [
+  /* ---------------- MÓDULO 1 ---------------- */
+  {
+    icon: '🧭',
+    title: 'El marco mental del consultor de procesos',
+    objective: 'Entender qué es un proceso y cuál es el rol del consultor frente a él.',
+    content: () => `
+      <p><strong>Un proceso es una secuencia de actividades que transforma entradas en salidas con valor para alguien.</strong> El consultor hace visible lo invisible: cómo fluye el trabajo, dónde se rompe y por qué.</p>
+
+      <div class="my-8 grid grid-cols-1 sm:grid-cols-[1fr_auto_1.3fr_auto_1fr] items-center gap-3 text-center">
+        <div class="rounded-xl border-2 border-slate-200 bg-slate-50 p-4">
+          <div class="text-2xl">📥</div><p class="font-semibold text-navy-900 mt-1">Entradas</p>
+          <p class="text-sm text-slate-500">Pedidos, información, materiales</p>
+        </div>
+        <div class="text-2xl text-navy-400 rotate-90 sm:rotate-0">➜</div>
+        <div class="rounded-xl bg-navy-800 text-white p-4">
+          <div class="text-2xl">⚙️</div><p class="font-semibold mt-1">Proceso</p>
+          <p class="text-sm text-navy-200">Secuencia de actividades que transforma</p>
+        </div>
+        <div class="text-2xl text-navy-400 rotate-90 sm:rotate-0">➜</div>
+        <div class="rounded-xl border-2 border-slate-200 bg-slate-50 p-4">
+          <div class="text-2xl">📦</div><p class="font-semibold text-navy-900 mt-1">Salidas con valor</p>
+          <p class="text-sm text-slate-500">Para un cliente interno o externo</p>
+        </div>
+      </div>
+
+      ${h3('Las 3 preguntas fundacionales')}
+      <p>Todo trabajo de consultoría de procesos, grande o chico, responde en orden a estas tres preguntas:</p>
+      <ol class="mt-4 space-y-3">
+        <li class="flex gap-4 items-start rounded-xl border border-slate-200 p-4">
+          <span class="shrink-0 w-9 h-9 rounded-full bg-navy-800 text-white grid place-items-center font-bold">1</span>
+          <div><p class="font-semibold text-navy-900">¿Qué hace la empresa?</p><p class="text-slate-600">→ <strong>Mapa de procesos</strong>: la foto completa de los procesos y cómo se relacionan.</p></div>
+        </li>
+        <li class="flex gap-4 items-start rounded-xl border border-slate-200 p-4">
+          <span class="shrink-0 w-9 h-9 rounded-full bg-navy-800 text-white grid place-items-center font-bold">2</span>
+          <div><p class="font-semibold text-navy-900">¿Cómo lo hace?</p><p class="text-slate-600">→ <strong>Relevamiento y documentación</strong>: cómo funciona realmente cada proceso hoy.</p></div>
+        </li>
+        <li class="flex gap-4 items-start rounded-xl border border-slate-200 p-4">
+          <span class="shrink-0 w-9 h-9 rounded-full bg-navy-800 text-white grid place-items-center font-bold">3</span>
+          <div><p class="font-semibold text-navy-900">¿Qué debería hacer?</p><p class="text-slate-600">→ <strong>Mejora o rediseño</strong>: cómo debería funcionar para generar más valor.</p></div>
+        </li>
+      </ol>
+      ${callout('💡 <strong>Idea clave:</strong> no se puede mejorar lo que no se ve. El primer valor que aporta el consultor es volver explícito un flujo de trabajo que hasta ese momento vivía en la cabeza de las personas.')}
+    `,
+    quiz: [
+      {
+        q: '¿Cuál es la mejor definición de proceso?',
+        options: [
+          'Un organigrama que muestra quién reporta a quién.',
+          'Una secuencia de actividades que transforma entradas en salidas con valor para alguien.',
+          'Un conjunto de procedimientos escritos en un manual de calidad.',
+          'Un sistema informático que automatiza tareas administrativas.'
+        ],
+        correct: 1,
+        explanation: 'Un proceso se define por la transformación: toma entradas y las convierte en salidas que alguien valora. El organigrama muestra estructura (no flujo), y el manual o el software son soportes del proceso, no el proceso en sí.'
+      },
+      {
+        q: '¿Cuál es el rol central del consultor de procesos?',
+        options: [
+          'Reemplazar al equipo en la ejecución diaria de las tareas.',
+          'Implementar un software de gestión en toda la empresa.',
+          'Auditar el cumplimiento de normas legales e impositivas.',
+          'Hacer visible lo invisible: cómo fluye el trabajo, dónde se rompe y por qué.'
+        ],
+        correct: 3,
+        explanation: 'El consultor aporta visibilidad y criterio: muestra cómo fluye el trabajo, dónde se generan fallas y cuáles son sus causas. Ejecutar, instalar software o auditar normas pueden ser actividades complementarias, pero no son el núcleo del rol.'
+      },
+      {
+        q: 'Un cliente te pide: "Ya sabemos cómo cobramos hoy; queremos saber cómo deberíamos hacerlo". ¿Qué pregunta fundacional estás respondiendo?',
+        options: [
+          '¿Qué hace la empresa? → mapa de procesos.',
+          '¿Cómo lo hace? → relevamiento y documentación.',
+          '¿Qué debería hacer? → mejora o rediseño.',
+          'Ninguna: es una pregunta financiera, no de procesos.'
+        ],
+        correct: 2,
+        explanation: 'Si el "cómo es hoy" ya está claro, el foco pasa al "cómo debería ser", que es la tercera pregunta: mejora o rediseño. Igual conviene validar rápidamente el relevamiento existente antes de proponer cambios.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 2 ---------------- */
+  {
+    icon: '🗂️',
+    title: 'Tipos de procesos en una empresa',
+    objective: 'Clasificar los procesos de una empresa en estratégicos, operativos y de soporte.',
+    content: () => `
+      <p>Toda organización puede leerse a través de tres tipos de procesos. Clasificarlos es el primer paso para armar el <strong>mapa de procesos</strong> y decidir dónde poner el foco.</p>
+      <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200">
+        <table class="table-course w-full text-sm sm:text-base">
+          <thead class="bg-navy-800 text-white">
+            <tr><th class="p-3 sm:p-4">Tipo</th><th class="p-3 sm:p-4">Para qué existe</th><th class="p-3 sm:p-4">Ejemplos</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            <tr>
+              <td class="p-3 sm:p-4 font-semibold text-navy-900 whitespace-nowrap">🎯 Estratégicos</td>
+              <td class="p-3 sm:p-4 text-slate-600">Definen el rumbo y orientan al resto de los procesos.</td>
+              <td class="p-3 sm:p-4"><span class="inline-block bg-slate-100 rounded px-2 py-0.5 m-0.5">Planificación</span><span class="inline-block bg-slate-100 rounded px-2 py-0.5 m-0.5">Gestión de marca</span></td>
+            </tr>
+            <tr class="bg-navy-50">
+              <td class="p-3 sm:p-4 font-semibold text-navy-900 whitespace-nowrap">⚙️ Operativos / Core</td>
+              <td class="p-3 sm:p-4 text-slate-600">Generan directamente el producto o servicio que paga el cliente.</td>
+              <td class="p-3 sm:p-4"><span class="inline-block bg-white rounded px-2 py-0.5 m-0.5">Compra</span><span class="inline-block bg-white rounded px-2 py-0.5 m-0.5">Producción</span><span class="inline-block bg-white rounded px-2 py-0.5 m-0.5">Despacho</span><span class="inline-block bg-white rounded px-2 py-0.5 m-0.5">Cobranza</span></td>
+            </tr>
+            <tr>
+              <td class="p-3 sm:p-4 font-semibold text-navy-900 whitespace-nowrap">🛠️ De soporte</td>
+              <td class="p-3 sm:p-4 text-slate-600">Dan los recursos y condiciones para que los demás funcionen.</td>
+              <td class="p-3 sm:p-4"><span class="inline-block bg-slate-100 rounded px-2 py-0.5 m-0.5">RRHH</span><span class="inline-block bg-slate-100 rounded px-2 py-0.5 m-0.5">IT</span><span class="inline-block bg-slate-100 rounded px-2 py-0.5 m-0.5">Finanzas</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      ${callout('🚚 <strong>En empresas de logística y distribución</strong>, los procesos operativos son el núcleo donde está el dinero y el riesgo. Un error en despacho o cobranza impacta directo en margen, caja y cliente: ahí suele estar el primer proyecto.', 'amber')}
+    `,
+    quiz: [
+      {
+        q: 'En una distribuidora mayorista, el proceso de despacho de pedidos a clientes es un proceso…',
+        options: ['Estratégico', 'Operativo / Core', 'De soporte', 'No es un proceso, es una tarea'],
+        correct: 1,
+        explanation: 'El despacho entrega directamente el servicio por el que paga el cliente, por eso es un proceso operativo (core). En logística y distribución, además, es donde se concentran el dinero y el riesgo.'
+      },
+      {
+        q: 'La liquidación de sueldos y la selección de personal son procesos…',
+        options: ['Estratégicos', 'Operativos / Core', 'De soporte', 'De marca'],
+        correct: 2,
+        explanation: 'Son procesos de RRHH: no generan el producto o servicio para el cliente, pero proveen los recursos (personas) que necesitan los demás procesos. Por eso son de soporte.'
+      },
+      {
+        q: 'La definición del plan anual y la gestión de la marca corporativa son procesos…',
+        options: ['Estratégicos', 'Operativos / Core', 'De soporte', 'Administrativos'],
+        correct: 0,
+        explanation: 'Planificación y gestión de marca definen el rumbo y el posicionamiento de la empresa, orientando al resto de los procesos. Son el ejemplo clásico de procesos estratégicos.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 3 ---------------- */
+  {
+    icon: '🔍',
+    title: 'Relevamiento de procesos',
+    objective: 'Elegir la técnica de relevamiento adecuada y saber qué preguntar.',
+    content: () => `
+      <p>Relevar es entender cómo funciona <em>realmente</em> un proceso, no cómo dice el manual que funciona. Para eso se combinan cuatro técnicas:</p>
+      <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">🗣️</p><p class="font-semibold text-navy-900 mt-2">Entrevistas semiestructuradas</p><p class="text-sm text-slate-600 mt-1">Guía de preguntas flexible. Ideal para entender responsabilidades, criterios y problemas percibidos.</p></div>
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">👀</p><p class="font-semibold text-navy-900 mt-2">Observación directa (shadowing)</p><p class="text-sm text-slate-600 mt-1">Acompañar a la persona mientras trabaja. Revela lo que se hace pero no se dice: atajos, esperas, retrabajos.</p></div>
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">📄</p><p class="font-semibold text-navy-900 mt-2">Revisión de documentos</p><p class="text-sm text-slate-600 mt-1">Formularios, reportes, procedimientos, registros del sistema. Aporta datos y muestra el "deber ser" formal.</p></div>
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">🧩</p><p class="font-semibold text-navy-900 mt-2">Mapeo participativo</p><p class="text-sm text-slate-600 mt-1">Taller con todas las áreas involucradas para construir el flujo juntos. Genera acuerdo y compromiso.</p></div>
+      </div>
+
+      ${h3('Las preguntas clave del relevamiento')}
+      <p>Sea cual sea la técnica, estas son las preguntas que no pueden faltar:</p>
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        ${[
+          ['👤', '¿Quién lo hace?', 'Roles y personas que ejecutan cada actividad.'],
+          ['📥', '¿Qué información necesita?', 'Datos, documentos o insumos para poder arrancar.'],
+          ['📤', '¿Qué entrega y a quién?', 'Salida concreta y su cliente interno o externo.'],
+          ['⚠️', '¿Qué pasa cuando falla?', 'Excepciones, reprocesos y "planes B" informales.'],
+          ['⏱️', '¿Cuánto tarda?', 'Tiempo típico de ejecución y de espera.'],
+          ['📊', '¿Por qué varía?', 'Causas de que a veces tarde 1 día y a veces 5.']
+        ].map(([e, t, d]) => `
+          <div class="rounded-xl bg-navy-800 text-white p-5 shadow-sm">
+            <p class="text-2xl">${e}</p>
+            <p class="font-semibold mt-2">${t}</p>
+            <p class="text-sm text-navy-200 mt-1">${d}</p>
+          </div>`).join('')}
+      </div>
+      ${callout('💡 <strong>Regla práctica:</strong> la gente describe el proceso ideal; la observación muestra el proceso real. Si lo que te dicen y lo que ves no coincide, creé lo que ves y preguntá por qué.')}
+    `,
+    quiz: [
+      {
+        q: 'Sospechás que lo que el equipo de depósito dice que hace no coincide con lo que realmente hace al preparar pedidos. ¿Qué técnica es la más adecuada?',
+        options: ['Revisión de documentos', 'Entrevista semiestructurada', 'Observación directa (shadowing)', 'Encuesta online anónima'],
+        correct: 2,
+        explanation: 'Cuando hay brecha entre el discurso y la práctica, la observación directa es la técnica que la revela: se ven atajos, esperas y retrabajos que en una entrevista o un documento no aparecen.'
+      },
+      {
+        q: 'Necesitás que Ventas, Depósito y Administración acuerden juntos cómo fluye un pedido entre sus áreas. ¿Qué técnica usarías?',
+        options: ['Mapeo participativo', 'Observación directa (shadowing)', 'Revisión de documentos', 'Entrevistas individuales por separado'],
+        correct: 0,
+        explanation: 'El mapeo participativo reúne a todas las áreas involucradas para construir el flujo en conjunto. Es ideal para procesos que cruzan áreas porque genera acuerdo sobre los traspasos y compromiso con el resultado.'
+      },
+      {
+        q: '¿Cuál de estas NO es una de las preguntas clave del relevamiento?',
+        options: ['¿Qué pasa cuando falla?', '¿Cuánto tarda y por qué varía?', '¿Qué entrega y a quién?', '¿Cuál es el sueldo de quien lo ejecuta?'],
+        correct: 3,
+        explanation: 'Las preguntas clave apuntan al flujo: quién lo hace, qué necesita, qué entrega y a quién, qué pasa cuando falla, cuánto tarda y por qué varía. El sueldo individual no describe el proceso y además genera desconfianza en el relevamiento.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 4 ---------------- */
+  {
+    icon: '📝',
+    title: 'Documentación de procesos',
+    objective: 'Documentar un proceso con ficha, diagrama de flujo y SIPOC.',
+    content: () => `
+      <p>Lo relevado se vuelve útil cuando queda documentado de forma clara y compartible. Estas son las tres herramientas básicas:</p>
+
+      ${h3('1. Ficha de proceso')}
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        ${['Nombre', 'Objetivo', 'Responsable', 'Entradas / Salidas', 'KPIs', 'Excepciones'].map(x => `
+          <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-navy-900">✔ ${x}</div>`).join('')}
+      </div>
+
+      ${h3('2. Diagrama de flujo: 5 símbolos')}
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center text-sm">
+        <div class="rounded-lg border border-slate-200 p-3"><svg viewBox="0 0 80 40" class="h-10 mx-auto"><ellipse cx="40" cy="20" rx="36" ry="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/></svg><p class="font-semibold mt-2">Óvalo</p><p class="text-slate-500">Inicio / Fin</p></div>
+        <div class="rounded-lg border border-slate-200 p-3"><svg viewBox="0 0 80 40" class="h-10 mx-auto"><rect x="6" y="6" width="68" height="28" rx="3" fill="#dce5f2" stroke="#1b3a6b" stroke-width="2"/></svg><p class="font-semibold mt-2">Rectángulo</p><p class="text-slate-500">Actividad</p></div>
+        <div class="rounded-lg border border-slate-200 p-3"><svg viewBox="0 0 80 40" class="h-10 mx-auto"><polygon points="40,3 74,20 40,37 6,20" fill="#fef3c7" stroke="#d97706" stroke-width="2"/></svg><p class="font-semibold mt-2">Rombo</p><p class="text-slate-500">Decisión</p></div>
+        <div class="rounded-lg border border-slate-200 p-3"><svg viewBox="0 0 80 40" class="h-10 mx-auto"><defs><marker id="miniArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#334155"/></marker></defs><line x1="8" y1="20" x2="70" y2="20" stroke="#334155" stroke-width="3" marker-end="url(#miniArrow)"/></svg><p class="font-semibold mt-2">Flecha</p><p class="text-slate-500">Flujo</p></div>
+        <div class="rounded-lg border border-slate-200 p-3 col-span-2 sm:col-span-1"><svg viewBox="0 0 80 40" class="h-10 mx-auto"><rect x="4" y="4" width="72" height="16" fill="#f8fafc" stroke="#94a3b8"/><rect x="4" y="20" width="72" height="16" fill="#fff" stroke="#94a3b8"/><rect x="4" y="4" width="16" height="32" fill="#152d54"/></svg><p class="font-semibold mt-2">Carril</p><p class="text-slate-500">Quién hace qué</p></div>
+      </div>
+
+      <p class="mt-6 text-sm text-slate-500">Ejemplo: proceso de atención de un pedido con carriles por área.</p>
+      <div class="mt-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2">${SWIMLANE_SVG}</div>
+
+      ${h3('3. SIPOC')}
+      <p>Vista de alto nivel que ubica el proceso en su contexto, de izquierda a derecha:</p>
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-5 gap-2 text-center">
+        ${[
+          ['S', 'Suppliers', 'Proveedores', 'Quién aporta las entradas'],
+          ['I', 'Inputs', 'Entradas', 'Qué recibe el proceso'],
+          ['P', 'Process', 'Proceso', 'Pasos principales (5-7)'],
+          ['O', 'Outputs', 'Salidas', 'Qué entrega el proceso'],
+          ['C', 'Customers', 'Clientes', 'Quién recibe las salidas']
+        ].map(([l, en, es, d], i) => `
+          <div class="relative rounded-xl ${i === 2 ? 'bg-navy-800 text-white' : 'bg-navy-50 text-navy-900'} p-4">
+            <p class="text-3xl font-extrabold">${l}</p>
+            <p class="font-semibold">${en}</p>
+            <p class="text-xs ${i === 2 ? 'text-navy-200' : 'text-slate-500'}">${es} · ${d}</p>
+          </div>`).join('')}
+      </div>
+    `,
+    quiz: [
+      {
+        q: 'En un diagrama de flujo, ¿qué representa el rombo?',
+        options: ['Inicio o fin del proceso', 'Una actividad', 'Una decisión', 'Un documento'],
+        correct: 2,
+        explanation: 'El rombo representa una decisión: un punto donde el flujo se bifurca según una condición (por ejemplo, "¿Hay stock?" → Sí / No). El óvalo marca inicio y fin, y el rectángulo, las actividades.'
+      },
+      {
+        q: '¿Qué elemento del diagrama de flujo muestra "quién hace qué"?',
+        options: ['La flecha', 'El carril (swimlane)', 'El óvalo', 'El rectángulo'],
+        correct: 1,
+        explanation: 'Los carriles dividen el diagrama por rol o área, de modo que cada actividad queda ubicada en el carril de quien la ejecuta. Así se ven claramente los traspasos entre áreas, donde suelen aparecer los problemas.'
+      },
+      {
+        q: 'En el SIPOC del proceso de facturación, la orden de compra aprobada que llega desde Ventas es un…',
+        options: ['Supplier (proveedor)', 'Input (entrada)', 'Output (salida)', 'Customer (cliente)'],
+        correct: 1,
+        explanation: 'La orden de compra es lo que el proceso de facturación recibe para poder trabajar, por lo tanto es un Input. Ventas, que la entrega, es el Supplier; la factura emitida sería el Output.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 5 ---------------- */
+  {
+    icon: '🩺',
+    title: 'Diagnóstico: los 7 desperdicios',
+    objective: 'Reconocer en campo los 7 desperdicios Lean aplicados a servicios.',
+    content: () => `
+      <p>Diagnosticar es encontrar dónde el proceso consume recursos sin agregar valor. El enfoque Lean identifica <strong>7 desperdicios</strong> que, adaptados a servicios, aparecen en casi cualquier empresa:</p>
+      <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200">
+        <table class="table-course w-full text-sm sm:text-base">
+          <thead class="bg-navy-800 text-white">
+            <tr><th class="p-3 sm:p-4">#</th><th class="p-3 sm:p-4">Desperdicio</th><th class="p-3 sm:p-4">Qué es</th><th class="p-3 sm:p-4">🔎 Señal de campo</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            ${[
+              ['📑', 'Sobreproducción', 'Hacer más, o antes, de lo que se necesita.', 'Reportes semanales que nadie lee; pedidos preparados antes de que el cliente confirme.'],
+              ['⏳', 'Esperas', 'Tiempo en que el trabajo está detenido.', 'Pedidos "en bandeja" esperando una firma; camiones parados en el andén esperando documentación.'],
+              ['🚛', 'Transporte innecesario', 'Mover materiales o información sin agregar valor.', 'Mercadería que pasa por dos depósitos antes de salir; un documento que recorre 4 áreas por mail.'],
+              ['🔁', 'Sobreprocesamiento', 'Hacer más pasos o controles de los que el cliente valora.', 'Cargar el mismo dato en 3 sistemas; 4 aprobaciones para una compra menor.'],
+              ['📦', 'Inventario excesivo', 'Acumular stock o trabajo pendiente.', 'Stock de baja rotación inmovilizado; bandeja de entrada con 200 casos pendientes.'],
+              ['🚶', 'Movimiento innecesario', 'Desplazamientos de personas que no agregan valor.', 'Preparador que camina kilómetros por turno; tiempo perdido buscando carpetas o archivos.'],
+              ['❌', 'Defectos / errores', 'Trabajo mal hecho que obliga a corregir.', 'Refacturaciones, notas de crédito, despachos equivocados, reclamos repetidos.']
+            ].map(([e, n, d, s], i) => `
+              <tr class="${i % 2 ? 'bg-slate-50' : ''}">
+                <td class="p-3 sm:p-4 text-xl">${e}</td>
+                <td class="p-3 sm:p-4 font-semibold text-navy-900 whitespace-nowrap">${n}</td>
+                <td class="p-3 sm:p-4 text-slate-600">${d}</td>
+                <td class="p-3 sm:p-4"><span class="inline-block rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5">${s}</span></td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${callout('💡 <strong>Tip de campo:</strong> seguí un pedido de punta a punta y medí cuánto tiempo está <em>trabajándose</em> versus cuánto está <em>esperando</em>. En servicios, es común que más del 80% del tiempo total sea espera.')}
+    `,
+    quiz: [
+      {
+        q: 'Todos los lunes se arma un reporte de 20 páginas que se envía a gerencia, pero nadie lo lee. ¿Qué desperdicio es?',
+        options: ['Defectos', 'Sobreproducción', 'Inventario excesivo', 'Movimiento innecesario'],
+        correct: 1,
+        explanation: 'Producir algo que nadie necesita (o antes de que se necesite) es sobreproducción. Consume horas de trabajo sin generar valor; la solución suele ser preguntar al destinatario qué información usa realmente.'
+      },
+      {
+        q: 'Los pedidos quedan en promedio 3 días en la bandeja del gerente esperando su aprobación. ¿Qué desperdicio es?',
+        options: ['Esperas', 'Transporte innecesario', 'Sobreprocesamiento', 'Sobreproducción'],
+        correct: 0,
+        explanation: 'Mientras el pedido está detenido en la bandeja, nadie le agrega valor: es una espera. Si además la aprobación fuera innecesaria, habría sobreprocesamiento, pero el síntoma descripto es el tiempo detenido.'
+      },
+      {
+        q: 'El equipo administrativo carga los mismos datos del cliente en tres sistemas distintos. ¿Qué desperdicio es?',
+        options: ['Movimiento innecesario', 'Inventario excesivo', 'Sobreprocesamiento', 'Transporte innecesario'],
+        correct: 2,
+        explanation: 'Repetir un paso que no agrega valor para el cliente es sobreprocesamiento. Además multiplica el riesgo de errores (defectos) por inconsistencias entre sistemas.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 6 ---------------- */
+  {
+    icon: '📈',
+    title: 'Indicadores de proceso (KPIs)',
+    objective: 'Medir un proceso con los 5 indicadores clave para convertir opiniones en argumentos.',
+    chart: true,
+    content: () => `
+      <p>Un proceso sin indicadores es una caja negra: no se sabe si funciona bien, si empeora o si la mejora sirvió. Estos son los <strong>5 indicadores clave</strong>:</p>
+      <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        ${[
+          ['⏱️', 'Tiempo de ciclo', 'Tiempo total desde que el proceso empieza hasta que entrega la salida.', 'Un pedido tarda 5 días desde que ingresa hasta que llega al cliente.'],
+          ['❌', 'Tasa de error / defecto', 'Porcentaje de salidas que salen mal y requieren corrección.', '8 de cada 100 despachos llegan con artículos equivocados (8%).'],
+          ['💲', 'Costo del proceso', 'Recursos consumidos por cada ejecución (horas, insumos, sistemas).', 'Procesar una factura cuesta USD 12 entre horas y controles.'],
+          ['🏭', 'Capacidad', 'Volumen máximo que el proceso puede procesar en un período.', 'El depósito puede preparar hasta 300 pedidos por día.'],
+          ['😊', 'Satisfacción del cliente', 'Percepción del cliente interno o externo sobre la salida.', 'Encuesta post-entrega: 6 sobre 10 puntos.']
+        ].map(([e, t, d, ex]) => `
+          <div class="rounded-xl border border-slate-200 p-5 flex flex-col">
+            <p class="text-2xl">${e}</p>
+            <p class="font-semibold text-navy-900 mt-2">${t}</p>
+            <p class="text-sm text-slate-600 mt-1 flex-1">${d}</p>
+            <p class="text-sm mt-3 bg-slate-50 rounded-lg p-3 text-slate-700"><span class="font-semibold">Ejemplo:</span> ${ex}</p>
+          </div>`).join('')}
+      </div>
+
+      ${h3('Ejemplo: antes y después de una mejora')}
+      <p class="text-sm text-slate-500">Datos ilustrativos de un proceso de pedidos en una distribuidora.</p>
+      <div class="mt-3 rounded-xl border border-slate-200 p-4 bg-white">
+        <div class="relative h-72 sm:h-80"><canvas id="kpiChart" aria-label="Gráfico de barras de KPIs antes y después de la mejora"></canvas></div>
+        <p id="chartFallback" class="hidden text-sm text-slate-500 text-center py-8">No se pudo cargar Chart.js (revisá tu conexión a internet).</p>
+      </div>
+
+      ${callout('📏 <strong>Regla:</strong> sin métricas, la mejora es opinión. Con métricas, es argumento.')}
+    `,
+    quiz: [
+      {
+        q: 'Un cliente se queja de que "los pedidos tardan demasiado". Medís que en promedio pasan 5 días desde que ingresan hasta que se entregan. ¿Qué KPI estás midiendo?',
+        options: ['Capacidad', 'Tiempo de ciclo', 'Costo del proceso', 'Satisfacción del cliente'],
+        correct: 1,
+        explanation: 'El tiempo de ciclo mide cuánto tarda el proceso de punta a punta, desde la entrada hasta la salida. Es el indicador que convierte "tarda demasiado" en un dato comparable antes y después de la mejora.'
+      },
+      {
+        q: 'De cada 100 despachos, 8 llegan al cliente con artículos equivocados. ¿Qué KPI refleja esta situación?',
+        options: ['Tasa de error / defecto', 'Capacidad', 'Tiempo de ciclo', 'Costo del proceso'],
+        correct: 0,
+        explanation: 'El porcentaje de salidas que salen mal es la tasa de error o defecto (acá, 8%). Suele tener impacto directo en costo (reenvíos, notas de crédito) y en satisfacción del cliente.'
+      },
+      {
+        q: 'El gerente de logística pregunta si el depósito podrá absorber la temporada alta, cuando se esperan 450 pedidos diarios. ¿Qué KPI necesitás conocer?',
+        options: ['Satisfacción del cliente', 'Tasa de error / defecto', 'Capacidad', 'Tiempo de ciclo'],
+        correct: 2,
+        explanation: 'La capacidad indica el volumen máximo que el proceso puede procesar en un período. Comparar la capacidad actual contra la demanda esperada permite anticipar cuellos de botella.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 7 ---------------- */
+  {
+    icon: '🚀',
+    title: 'Mejora de procesos',
+    objective: 'Elegir el nivel de intervención adecuado y seguir el ciclo de trabajo de mejora.',
+    content: () => `
+      <p>No todos los problemas requieren la misma intervención. Hay <strong>tres niveles</strong>, de menor a mayor impacto y riesgo:</p>
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+        ${[
+          ['1', 'Mejora incremental / Kaizen', 'Ajustes pequeños, rápidos y de bajo riesgo sobre el proceso existente.', 'Bajo', 'Bajo', 'bg-emerald-50 border-emerald-200', 'bg-emerald-600'],
+          ['2', 'Rediseño (BPR ligero)', 'Mismo objetivo, distinto cómo: se reorganizan pasos, roles o sistemas.', 'Medio', 'Medio', 'bg-amber-50 border-amber-200', 'bg-amber-500'],
+          ['3', 'Reingeniería', 'Se parte de cero y se repiensa el proceso completo.', 'Alto', 'Alto', 'bg-red-50 border-red-200', 'bg-red-600']
+        ].map(([n, t, d, imp, r, box, dot]) => `
+          <div class="rounded-xl border ${box} p-5">
+            <div class="flex items-center gap-3"><span class="w-8 h-8 rounded-full ${dot} text-white grid place-items-center font-bold">${n}</span><p class="font-semibold text-navy-900">${t}</p></div>
+            <p class="text-sm text-slate-700 mt-3">${d}</p>
+            <div class="mt-4 flex gap-2 text-xs">
+              <span class="rounded-full bg-white border border-slate-200 px-3 py-1">Impacto: <strong>${imp}</strong></span>
+              <span class="rounded-full bg-white border border-slate-200 px-3 py-1">Riesgo: <strong>${r}</strong></span>
+            </div>
+          </div>`).join('')}
+      </div>
+
+      ${h3('El ciclo de trabajo')}
+      <p>Cualquiera sea el nivel, el trabajo sigue un ciclo que no termina en la implementación: se mide, se ajusta y se vuelve a empezar.</p>
+      <div class="mt-4">${cycleSVG()}</div>
+      <p class="text-center text-sm text-slate-500 mt-2">Relevamiento → Diagnóstico → Diseño → Implementación → Medición → Ajuste</p>
+    `,
+    quiz: [
+      {
+        q: 'Los preparadores proponen ubicar los 20 productos más vendidos cerca de la zona de armado para caminar menos. ¿Qué nivel de intervención es?',
+        options: ['Reingeniería', 'Rediseño (BPR ligero)', 'Mejora incremental / Kaizen', 'Ninguno: no es una mejora de procesos'],
+        correct: 2,
+        explanation: 'Es un ajuste pequeño, rápido y de bajo riesgo, propuesto por quienes hacen el trabajo: la definición de Kaizen. No cambia el proceso de fondo, solo lo hace más eficiente.'
+      },
+      {
+        q: 'La empresa mantiene el objetivo de facturar cada venta, pero pasa de facturar a mano al día siguiente a facturar automáticamente al despachar, eliminando dos pasos y un rol de control. ¿Qué nivel es?',
+        options: ['Mejora incremental / Kaizen', 'Rediseño (BPR ligero)', 'Reingeniería', 'Auditoría de procesos'],
+        correct: 1,
+        explanation: 'El objetivo es el mismo pero cambia el cómo: se reorganizan pasos, roles y sistemas. Eso es un rediseño (BPR ligero): más profundo que un ajuste Kaizen, pero sin partir de cero.'
+      },
+      {
+        q: 'Una distribuidora decide abandonar su modelo de venta con preventistas y construir desde cero un canal e-commerce con logística propia. ¿Qué nivel es?',
+        options: ['Reingeniería', 'Rediseño (BPR ligero)', 'Mejora incremental / Kaizen', 'Mejora continua'],
+        correct: 0,
+        explanation: 'Se parte de cero y se repiensa el modelo completo: es reingeniería. Tiene el mayor potencial de impacto, pero también el mayor riesgo y requiere fuerte gestión del cambio.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 8 ---------------- */
+  {
+    icon: '🤝',
+    title: 'Gestión del cambio y adopción',
+    objective: 'Evitar los errores típicos que hacen fracasar un proceso nuevo.',
+    content: () => `
+      <p>Un proceso bien diseñado que nadie usa vale cero. La mayoría de las mejoras no fracasan por el diseño, sino por la <strong>adopción</strong>.</p>
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div class="rounded-xl border border-red-200 bg-red-50 p-5">
+          <p class="font-semibold text-red-900 text-lg">❌ Por qué fracasan los procesos nuevos</p>
+          <ul class="mt-4 space-y-3 text-red-900">
+            <li class="flex gap-3"><span>🤷</span><span>No entienden el <strong>por qué</strong> del cambio.</span></li>
+            <li class="flex gap-3"><span>🚪</span><span>No <strong>participaron</strong> en el diseño.</span></li>
+            <li class="flex gap-3"><span>🧱</span><span>El proceso nuevo es <strong>más difícil</strong> que el anterior.</span></li>
+            <li class="flex gap-3"><span>👻</span><span>No hay <strong>seguimiento</strong> después del lanzamiento.</span></li>
+          </ul>
+        </div>
+        <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+          <p class="font-semibold text-emerald-900 text-lg">✅ Lo que funciona</p>
+          <ul class="mt-4 space-y-3 text-emerald-900">
+            <li class="flex gap-3"><span>👥</span><span><strong>Involucrar</strong> a quienes hacen el trabajo desde el inicio.</span></li>
+            <li class="flex gap-3"><span>📣</span><span>Comunicar el <strong>"para qué"</strong>: qué gana cada uno con el cambio.</span></li>
+            <li class="flex gap-3"><span>🧪</span><span><strong>Pilotear</strong> antes de escalar.</span></li>
+            <li class="flex gap-3"><span>🎖️</span><span>Nombrar un <strong>process owner</strong> responsable del proceso.</span></li>
+          </ul>
+        </div>
+      </div>
+      ${callout('💡 <strong>Idea clave:</strong> las personas no se resisten al cambio; se resisten a que les cambien las cosas sin entender por qué ni poder opinar.', 'green')}
+    `,
+    quiz: [
+      {
+        q: 'La gerencia diseñó el nuevo proceso de cobranza en reuniones cerradas y lo presentó terminado al equipo, que ahora lo resiste. ¿Cuál fue el error principal?',
+        options: ['No se nombró un process owner', 'El equipo no participó en el diseño', 'No se hizo un piloto', 'El proceso nuevo es demasiado fácil'],
+        correct: 1,
+        explanation: 'Quienes hacen el trabajo no fueron involucrados, así que no sienten el proceso como propio y además se perdió su conocimiento práctico. Involucrarlos desde el inicio reduce la resistencia y mejora el diseño.'
+      },
+      {
+        q: 'Se lanzó el nuevo circuito de pedidos en las 12 sucursales el mismo día, sin prueba previa, y colapsó la primera semana. ¿Qué faltó?',
+        options: ['Comunicar el "para qué"', 'Nombrar un process owner', 'Pilotear antes de escalar', 'Medir la satisfacción del cliente'],
+        correct: 2,
+        explanation: 'Un piloto en una o dos sucursales habría permitido detectar y corregir fallas con bajo impacto antes de escalar. Lanzar en todas a la vez multiplica los errores y quema la credibilidad del cambio.'
+      },
+      {
+        q: 'El nuevo proceso arrancó bien, pero a los dos meses todos volvieron al método viejo porque nadie controlaba ni respondía por él. ¿Qué faltó?',
+        options: ['Un process owner y seguimiento', 'Un diagrama de flujo más detallado', 'Una reingeniería completa', 'Más entrevistas de relevamiento'],
+        correct: 0,
+        explanation: 'Sin un responsable del proceso y sin seguimiento, la inercia devuelve a todos al hábito anterior. El process owner sostiene el proceso en el tiempo, mide sus resultados y lo ajusta.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 9 ---------------- */
+  {
+    icon: '🧰',
+    title: 'Marcos y herramientas que debés conocer',
+    objective: 'Saber cuándo recomendar cada uno de los 6 marcos de gestión de procesos.',
+    content: () => `
+      <p>No es necesario ser experto en todos, sino <strong>saber cuándo recomendar cada uno</strong>. Estos son los seis marcos que más vas a escuchar:</p>
+      <div class="mt-6 overflow-x-auto rounded-xl border border-slate-200">
+        <table class="table-course w-full text-sm sm:text-base">
+          <thead class="bg-navy-800 text-white">
+            <tr><th class="p-3 sm:p-4">Marco</th><th class="p-3 sm:p-4">Propósito</th><th class="p-3 sm:p-4">Recomendalo cuando…</th></tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200">
+            ${[
+              ['Lean', 'Eliminar desperdicios', 'Hay demoras, pasos de más, retrabajos o stock acumulado.'],
+              ['Six Sigma / DMAIC', 'Reducir variabilidad', 'El resultado es inconsistente y hay datos para analizarlo estadísticamente.'],
+              ['BPM', 'Gestión sistémica', 'La empresa quiere gestionar por procesos de forma permanente, no por proyecto.'],
+              ['ISO 9001', 'Estandarización', 'Se necesita una certificación o demostrar un sistema de calidad a clientes.'],
+              ['BPMN', 'Notación para diagramar', 'Hace falta un lenguaje común para diagramar, sobre todo entre negocio e IT.'],
+              ['Value Stream Mapping', 'Ver el flujo de valor completo', 'Hay que visualizar de punta a punta dónde se agrega valor y dónde se espera.']
+            ].map(([m, p, c], i) => `
+              <tr class="${i % 2 ? 'bg-slate-50' : ''}">
+                <td class="p-3 sm:p-4 font-semibold text-navy-900 whitespace-nowrap">${m}</td>
+                <td class="p-3 sm:p-4"><span class="inline-block rounded-full bg-navy-100 text-navy-900 px-3 py-1 font-medium">${p}</span></td>
+                <td class="p-3 sm:p-4 text-slate-600">${c}</td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${callout('💡 <strong>Criterio de consultor:</strong> el marco se elige por el problema del cliente, no por la preferencia del consultor. Muchas veces la mejor recomendación combina dos (por ejemplo, Lean para el diagnóstico y BPMN para documentar).')}
+    `,
+    quiz: [
+      {
+        q: 'Los tiempos de entrega varían mucho (a veces 1 día, a veces 7) y la empresa tiene datos históricos para analizar las causas. ¿Qué marco recomendarías?',
+        options: ['ISO 9001', 'BPMN', 'Six Sigma / DMAIC', 'Value Stream Mapping'],
+        correct: 2,
+        explanation: 'Six Sigma, con su ciclo DMAIC (Definir, Medir, Analizar, Mejorar, Controlar), está orientado a reducir la variabilidad usando datos. Es el marco indicado cuando el problema es la inconsistencia del resultado.'
+      },
+      {
+        q: 'El área de IT y el área comercial necesitan un lenguaje estándar para diagramar procesos que ambos entiendan. ¿Qué marco corresponde?',
+        options: ['BPMN', 'Lean', 'ISO 9001', 'BPM'],
+        correct: 0,
+        explanation: 'BPMN (Business Process Model and Notation) es una notación estándar para diagramar procesos, pensada para que negocio y tecnología lean el mismo diagrama. No es un método de mejora, sino un lenguaje.'
+      },
+      {
+        q: 'Un cliente grande exige a tu cliente demostrar un sistema de calidad estandarizado y certificado. ¿Qué marco recomendás?',
+        options: ['Lean', 'Value Stream Mapping', 'Six Sigma / DMAIC', 'ISO 9001'],
+        correct: 3,
+        explanation: 'ISO 9001 es la norma internacional de sistemas de gestión de calidad y permite certificar la estandarización de procesos ante terceros. Los otros marcos mejoran procesos, pero no otorgan certificación.'
+      }
+    ]
+  },
+
+  /* ---------------- MÓDULO 10 ---------------- */
+  {
+    icon: '💼',
+    title: 'Cómo se vende y entrega una consultoría de procesos',
+    objective: 'Estructurar un proyecto de consultoría de procesos y elegir cómo cobrarlo.',
+    content: () => `
+      <p>Una consultoría de procesos se vende y se entrega por etapas. Esta es la <strong>estructura típica de proyecto</strong>:</p>
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr] gap-3 items-stretch">
+        ${[
+          ['🩺', 'Diagnóstico', ['Relevamiento', 'Mapa de procesos', 'Quick wins']],
+          ['📐', 'Propuesta de mejora', ['Procesos rediseñados', 'Hoja de ruta']],
+          ['🤝', 'Acompañamiento', ['Implementación', 'Capacitación', 'Medición']]
+        ].map(([e, t, items], i) => `
+          ${i > 0 ? '<div class="hidden md:grid place-items-center text-2xl text-navy-400">➜</div><div class="md:hidden text-center text-2xl text-navy-400">⬇</div>' : ''}
+          <div class="rounded-xl ${i === 0 ? 'bg-navy-800 text-white' : 'bg-navy-50 text-navy-900 border border-navy-100'} p-5">
+            <p class="text-xs uppercase tracking-wider ${i === 0 ? 'text-navy-200' : 'text-slate-500'}">Etapa ${i + 1}</p>
+            <p class="text-lg font-semibold mt-1">${e} ${t}</p>
+            <ul class="mt-3 space-y-1 text-sm">${items.map(x => `<li>• ${x}</li>`).join('')}</ul>
+          </div>`).join('')}
+      </div>
+      ${callout('🚪 <strong>El diagnóstico es la puerta de entrada:</strong> bien hecho, vende solo el resto.', 'amber')}
+
+      ${h3('Formas de cobro')}
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">🪜</p><p class="font-semibold text-navy-900 mt-2">Por etapas</p><p class="text-sm text-slate-600 mt-1">Se cobra cada etapa por separado. Baja el riesgo para el cliente y permite empezar con el diagnóstico.</p></div>
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">📦</p><p class="font-semibold text-navy-900 mt-2">Proyecto cerrado</p><p class="text-sm text-slate-600 mt-1">Precio fijo por un alcance definido. Conviene cuando el alcance y los entregables están claros.</p></div>
+        <div class="rounded-xl border border-slate-200 p-5"><p class="text-2xl">🔄</p><p class="font-semibold text-navy-900 mt-2">Retainer mensual</p><p class="text-sm text-slate-600 mt-1">Abono mensual por acompañamiento continuo. Ideal para implementación y mejora sostenida.</p></div>
+      </div>
+      <p class="mt-6 text-slate-600">Al responder el quiz de este módulo vas a poder ver el <strong>resumen final del curso</strong> con tu puntaje total.</p>
+    `,
+    quiz: [
+      {
+        q: '¿Cuál es la secuencia típica de un proyecto de consultoría de procesos?',
+        options: [
+          'Implementación → Diagnóstico → Capacitación',
+          'Propuesta de mejora → Diagnóstico → Acompañamiento',
+          'Diagnóstico → Propuesta de mejora → Acompañamiento',
+          'Acompañamiento → Propuesta de mejora → Medición'
+        ],
+        correct: 2,
+        explanation: 'Primero se entiende la situación (diagnóstico: relevamiento, mapa y quick wins), luego se diseña la solución (procesos rediseñados y hoja de ruta) y finalmente se acompaña la implementación, capacitación y medición.'
+      },
+      {
+        q: 'Un cliente quiere que lo acompañes mes a mes durante la implementación, con un alcance que se va ajustando sobre la marcha. ¿Qué forma de cobro conviene?',
+        options: ['Proyecto cerrado', 'Retainer mensual', 'Por etapas', 'Cobro por hora sin acuerdo previo'],
+        correct: 1,
+        explanation: 'El retainer mensual es un abono por acompañamiento continuo, ideal cuando el trabajo es sostenido y el alcance evoluciona. Un proyecto cerrado requiere un alcance fijo y definido de antemano.'
+      },
+      {
+        q: '¿Por qué se dice que el diagnóstico es "la puerta de entrada"?',
+        options: [
+          'Porque es la etapa más cara del proyecto.',
+          'Porque se puede saltear si el cliente ya sabe qué quiere.',
+          'Porque bien hecho, con mapa claro y quick wins, genera confianza y vende solo el resto.',
+          'Porque es la única etapa que se puede cobrar por adelantado.'
+        ],
+        correct: 2,
+        explanation: 'El diagnóstico es una inversión acotada y de bajo riesgo para el cliente. Si muestra con claridad dónde se pierde valor y logra quick wins, el cliente ve el resultado y la propuesta de mejora y el acompañamiento se venden solos.'
+      }
+    ]
+  }
+];
+
+/* =========================================================
+   Estado (en memoria)
+   ========================================================= */
+const TOTAL = MODULES.length;
+const SUMMARY = TOTAL; // índice de la pantalla de resumen final
+const state = {
+  current: 0,
+  answers: MODULES.map(m => m.quiz.map(() => null)),
+  submitted: MODULES.map(() => false)
+};
+let kpiChart = null;
+
+const $ = id => document.getElementById(id);
+const scoreOf = mi => MODULES[mi].quiz.reduce((acc, q, qi) => acc + (state.answers[mi][qi] === q.correct ? 1 : 0), 0);
+const totalScore = () => MODULES.reduce((acc, _, mi) => acc + (state.submitted[mi] ? scoreOf(mi) : 0), 0);
+const maxScore = () => MODULES.reduce((acc, m) => acc + m.quiz.length, 0);
+const allSubmitted = () => state.submitted.every(Boolean);
+// Un módulo está desbloqueado si todos los anteriores tienen el quiz completo
+const isUnlocked = i => i === 0 || (i <= TOTAL && state.submitted.slice(0, i).every(Boolean));
+
+/* =========================================================
+   Render
+   ========================================================= */
+function quizHTML(mi) {
+  const m = MODULES[mi];
+  const sub = state.submitted[mi];
+  const answered = state.answers[mi].filter(a => a !== null).length;
+
+  let html = `<section id="quiz" class="mt-12 pt-8 border-t-2 border-dashed border-slate-200">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h3 class="text-xl font-semibold text-navy-900">📝 Quiz del módulo</h3>
+      <span class="text-sm text-slate-500">${sub ? 'Quiz completado' : `${answered} de ${m.quiz.length} respondidas`}</span>
+    </div>
+    <p class="text-slate-500 text-sm mt-1">Respondé las ${m.quiz.length} preguntas para habilitar el siguiente módulo. No es necesario aprobar.</p>`;
+
+  if (sub) {
+    const s = scoreOf(mi);
+    const tone = s === m.quiz.length ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+      : s === 0 ? 'bg-red-50 border-red-300 text-red-900' : 'bg-amber-50 border-amber-300 text-amber-900';
+    const msg = s === m.quiz.length ? '¡Excelente! Respondiste todo correctamente.'
+      : s === 0 ? 'Revisá las explicaciones de cada pregunta antes de seguir.' : 'Buen trabajo. Revisá las explicaciones de las incorrectas.';
+    html += `<div id="quizResult" class="fade-in mt-5 rounded-xl border-2 ${tone} p-5 flex items-center gap-4">
+      <div class="text-3xl font-extrabold">${s}/${m.quiz.length}</div>
+      <div><p class="font-semibold">${s} de ${m.quiz.length} correctas</p><p class="text-sm">${msg}</p></div>
+    </div>`;
+  }
+
+  m.quiz.forEach((q, qi) => {
+    const sel = state.answers[mi][qi];
+    const ok = sub && sel === q.correct;
+    const card = !sub ? 'border-slate-200 bg-white' : ok ? 'border-emerald-300 bg-emerald-50/40' : 'border-red-400 bg-red-50/60';
+    html += `<fieldset class="mt-6 rounded-xl border-2 ${card} p-4 sm:p-5">
+      <legend class="sr-only">Pregunta ${qi + 1}</legend>
+      <p class="font-semibold text-navy-900 flex gap-2">
+        <span class="shrink-0">${sub ? (ok ? '✅' : '❌') : `${qi + 1}.`}</span><span>${q.q}</span>
+      </p>
+      <div class="mt-4 grid grid-cols-1 gap-2">`;
+    q.options.forEach((opt, oi) => {
+      let cls;
+      if (!sub) {
+        cls = sel === oi ? 'border-navy-700 bg-navy-50 ring-1 ring-navy-700 cursor-pointer'
+          : 'border-slate-200 hover:border-navy-400 hover:bg-slate-50 cursor-pointer';
+      } else if (oi === q.correct) {
+        cls = 'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium';
+      } else if (oi === sel) {
+        cls = 'border-red-500 bg-red-100 text-red-900 line-through decoration-red-400';
+      } else {
+        cls = 'border-slate-200 text-slate-400';
+      }
+      html += `<label class="flex items-start gap-3 rounded-lg border px-4 py-3 transition ${cls}">
+        <input type="radio" class="mt-1 shrink-0" name="q${mi}_${qi}" value="${oi}" data-q="${qi}" ${sel === oi ? 'checked' : ''} ${sub ? 'disabled' : ''}>
+        <span class="shrink-0 font-semibold">${LETTERS[oi]})</span><span>${opt}</span>
+      </label>`;
+    });
+    html += `</div>`;
+    if (sub && !ok) {
+      html += `<div class="fade-in mt-4 rounded-lg bg-white border border-red-200 p-4 text-sm">
+        <p class="text-red-700 font-semibold">Incorrecta. Respuesta correcta: ${LETTERS[q.correct]}) ${q.options[q.correct]}</p>
+        <p class="text-slate-700 mt-2 leading-relaxed">${q.explanation}</p>
+      </div>`;
+    } else if (sub && ok) {
+      html += `<p class="mt-3 text-sm text-emerald-700 font-medium">¡Correcta!</p>`;
+    }
+    html += `</fieldset>`;
+  });
+
+  if (!sub) {
+    html += `<div class="mt-6 flex flex-wrap items-center gap-3">
+      <button id="submitQuiz" class="px-6 py-3 rounded-xl bg-navy-800 text-white font-semibold hover:bg-navy-700 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed transition" ${answered < m.quiz.length ? 'disabled' : ''}>
+        Enviar respuestas
+      </button>
+      ${answered < m.quiz.length ? '<span class="text-sm text-slate-500">Respondé todas las preguntas para enviar.</span>' : ''}
+    </div>`;
+  }
+  html += `</section>`;
+  return html;
+}
+
+function renderModule(mi) {
+  const m = MODULES[mi];
+  $('moduleContainer').innerHTML = `
+    <div class="fade-in">
+      <p class="text-sm font-semibold text-navy-500 uppercase tracking-wider">Módulo ${mi + 1}</p>
+      <h2 class="mt-1 text-2xl sm:text-3xl font-bold text-navy-900 flex items-start gap-3"><span>${m.icon}</span><span>${m.title}</span></h2>
+      <p class="mt-3 inline-flex items-start gap-2 rounded-lg bg-slate-100 px-4 py-2 text-slate-700"><span class="font-semibold text-navy-800">🎯 Objetivo:</span><span>${m.objective}</span></p>
+      <div class="prose-course mt-6 text-slate-700 text-[15px] sm:text-base">${m.content()}</div>
+      <div id="quizContainer">${quizHTML(mi)}</div>
+    </div>`;
+  if (m.chart) renderChart();
+}
+
+function renderQuiz(mi, focusName) {
+  $('quizContainer').innerHTML = quizHTML(mi);
+  if (focusName) {
+    const el = document.querySelector(`input[name="${focusName}"]:checked`);
+    if (el) el.focus({ preventScroll: true });
+  }
+}
+
+function renderChart() {
+  const canvas = $('kpiChart');
+  if (!window.Chart) {
+    canvas.parentElement.classList.add('hidden');
+    $('chartFallback').classList.remove('hidden');
+    return;
+  }
+  const units = ['días', '%', 'USD por pedido', 'cientos de pedidos/día', 'puntos sobre 10'];
+  kpiChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: ['Tiempo de ciclo', 'Tasa de error', 'Costo del proceso', 'Capacidad', 'Satisfacción'],
+      datasets: [
+        { label: 'Antes', data: [5, 8, 12, 3, 6], backgroundColor: '#94a3b8', borderRadius: 6 },
+        { label: 'Después', data: [2.5, 3, 8.5, 4.5, 8.5], backgroundColor: '#1b3a6b', borderRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'top', labels: { usePointStyle: true, pointStyle: 'rectRounded' } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y} ${units[ctx.dataIndex]}` } },
+        title: { display: true, text: '↓ menos es mejor en tiempo, error y costo  ·  ↑ más es mejor en capacidad y satisfacción', color: '#64748b', font: { size: 11, weight: 'normal' } }
+      },
+      scales: {
+        y: { beginAtZero: true, grid: { color: '#e2e8f0' }, ticks: { color: '#64748b' } },
+        x: { grid: { display: false }, ticks: { color: '#334155' } }
+      }
+    }
+  });
+}
+
+function renderSummary() {
+  const total = totalScore(), max = maxScore();
+  const pct = Math.round(total / max * 100);
+  const verdict = pct >= 90 ? ['🏆', 'Dominio sobresaliente', 'Tenés una base sólida para encarar tu primer proyecto de consultoría de procesos.']
+    : pct >= 70 ? ['🎯', 'Muy buen nivel', 'Manejás los conceptos clave. Repasá los módulos con menor puntaje para afianzarlos.']
+    : pct >= 50 ? ['📘', 'Base en construcción', 'Tenés los fundamentos. Te conviene repasar los módulos con más errores antes de aplicarlos con clientes.']
+    : ['🔁', 'Conviene repasar', 'Volvé a recorrer los módulos y sus explicaciones: la práctica consolida el criterio.'];
+
+  $('moduleContainer').innerHTML = `
+    <div class="fade-in">
+      <p class="text-sm font-semibold text-navy-500 uppercase tracking-wider">Curso completado</p>
+      <h2 class="mt-1 text-2xl sm:text-3xl font-bold text-navy-900">🎓 Resumen final del curso</h2>
+
+      <div class="mt-6 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-6 items-center rounded-2xl bg-navy-900 text-white p-6 sm:p-8">
+        <div class="text-center">
+          <p class="text-5xl sm:text-6xl font-extrabold">${total}<span class="text-2xl text-navy-300"> / ${max}</span></p>
+          <p class="text-navy-200 mt-1">respuestas correctas · ${pct}%</p>
+        </div>
+        <div>
+          <p class="text-2xl">${verdict[0]} <span class="font-semibold">${verdict[1]}</span></p>
+          <p class="text-navy-200 mt-2">${verdict[2]}</p>
+        </div>
+      </div>
+
+      ${h3('Resultado por módulo')}
+      <div class="space-y-2">
+        ${MODULES.map((m, mi) => {
+          const s = scoreOf(mi), q = m.quiz.length;
+          const color = s === q ? 'bg-emerald-500' : s === 0 ? 'bg-red-500' : 'bg-amber-500';
+          return `<button data-goto="${mi}" class="w-full text-left grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 hover:bg-slate-50 transition">
+            <span class="text-sm sm:text-base"><span class="font-semibold text-navy-900">${mi + 1}.</span> ${m.icon} ${m.title}</span>
+            <span class="hidden sm:block h-2 rounded-full bg-slate-200 overflow-hidden"><span class="block h-full ${color}" style="width:${s / q * 100}%"></span></span>
+            <span class="font-semibold text-navy-900 tabular-nums">${s}/${q}</span>
+          </button>`;
+        }).join('')}
+      </div>
+
+      ${h3('Lo esencial del curso')}
+      <ul class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm sm:text-base">
+        ${[
+          'Un proceso transforma entradas en salidas con valor; el consultor hace visible lo invisible.',
+          'Qué hace → cómo lo hace → qué debería hacer: mapa, relevamiento, mejora.',
+          'En logística y distribución, los procesos operativos concentran el dinero y el riesgo.',
+          'Lo que la gente dice no siempre es lo que hace: observá.',
+          'Ficha, diagrama con carriles y SIPOC: documentar para compartir.',
+          'Los 7 desperdicios se detectan con señales de campo concretas.',
+          'Sin métricas, la mejora es opinión. Con métricas, es argumento.',
+          'Kaizen, rediseño o reingeniería: la intervención se ajusta al problema.',
+          'Involucrar, comunicar el para qué, pilotear y nombrar un process owner.',
+          'El diagnóstico es la puerta de entrada: bien hecho, vende solo el resto.'
+        ].map(t => `<li class="flex gap-3 rounded-lg bg-slate-50 border border-slate-200 p-3"><span class="text-emerald-600">✔</span><span>${t}</span></li>`).join('')}
+      </ul>
+
+      <div class="mt-8 flex flex-wrap gap-3">
+        <button id="restartBtn" class="px-5 py-3 rounded-xl border border-slate-300 bg-white font-medium hover:bg-slate-50 transition">🔄 Reiniciar el curso</button>
+        <button data-goto="0" class="px-5 py-3 rounded-xl bg-navy-800 text-white font-medium hover:bg-navy-700 transition">📚 Repasar desde el módulo 1</button>
+      </div>
+    </div>`;
+}
+
+function renderChrome() {
+  const i = state.current;
+  const onSummary = i === SUMMARY;
+  $('progressLabel').textContent = onSummary ? 'Resumen final' : `Módulo ${i + 1} de ${TOTAL}`;
+  $('progressBar').style.width = onSummary ? '100%' : `${((i + 1) / TOTAL) * 100}%`;
+  $('progressBarWrap').setAttribute('aria-valuenow', onSummary ? TOTAL : i + 1);
+  const answeredQs = state.submitted.reduce((a, s, mi) => a + (s ? MODULES[mi].quiz.length : 0), 0);
+  $('scoreLabel').textContent = `Puntaje acumulado: ${totalScore()} / ${maxScore()}` + (answeredQs < maxScore() ? ` · ${answeredQs} respondidas` : '');
+
+  // Indicadores de módulos
+  let dots = MODULES.map((m, mi) => {
+    const unlocked = isUnlocked(mi);
+    const active = mi === i;
+    const done = state.submitted[mi];
+    const cls = active ? 'bg-white text-navy-900 ring-2 ring-white'
+      : done ? 'bg-emerald-500 text-white hover:bg-emerald-400'
+      : unlocked ? 'bg-navy-600 text-white hover:bg-navy-500' : 'bg-navy-800 text-navy-400 cursor-not-allowed';
+    return `<button data-goto="${mi}" ${unlocked ? '' : 'disabled'} title="Módulo ${mi + 1}: ${m.title}${unlocked ? '' : ' (bloqueado)'}"
+      class="w-8 h-8 rounded-lg text-xs font-bold transition ${cls}">${done && !active ? '✓' : mi + 1}</button>`;
+  }).join('');
+  const sumUnlocked = allSubmitted();
+  dots += `<button data-goto="${SUMMARY}" ${sumUnlocked ? '' : 'disabled'} title="Resumen final${sumUnlocked ? '' : ' (bloqueado)'}"
+    class="h-8 px-2 rounded-lg text-xs font-bold transition ${onSummary ? 'bg-white text-navy-900' : sumUnlocked ? 'bg-amber-400 text-navy-900 hover:bg-amber-300' : 'bg-navy-800 text-navy-400 cursor-not-allowed'}">🎓</button>`;
+  $('moduleDots').innerHTML = dots;
+
+  // Botones inferiores
+  const prev = $('prevBtn'), next = $('nextBtn');
+  prev.disabled = i === 0;
+  let hint = '';
+  if (onSummary) {
+    next.classList.add('invisible');
+  } else {
+    next.classList.remove('invisible');
+    next.disabled = !state.submitted[i];
+    next.textContent = i === TOTAL - 1 ? 'Ver resumen final 🎓' : 'Siguiente módulo →';
+    if (!state.submitted[i]) hint = '🔒 Completá el quiz para avanzar';
+  }
+  $('navHint').textContent = hint;
+  $('navHintMobile').textContent = hint;
+}
+
+function goTo(i) {
+  if (i < 0 || i > SUMMARY || !isUnlocked(i)) return;
+  if (kpiChart) { kpiChart.destroy(); kpiChart = null; }
+  state.current = i;
+  if (i === SUMMARY) renderSummary(); else renderModule(i);
+  renderChrome();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* =========================================================
+   Eventos
+   ========================================================= */
+$('moduleContainer').addEventListener('change', e => {
+  const t = e.target;
+  if (t.type !== 'radio' || state.current === SUMMARY) return;
+  const mi = state.current;
+  if (state.submitted[mi]) return;
+  state.answers[mi][Number(t.dataset.q)] = Number(t.value);
+  renderQuiz(mi, t.name);
+});
+
+$('moduleContainer').addEventListener('click', e => {
+  if (e.target.closest('#submitQuiz')) {
+    const mi = state.current;
+    if (state.answers[mi].some(a => a === null)) return;
+    state.submitted[mi] = true;
+    renderQuiz(mi);
+    renderChrome();
+    const res = $('quizResult');
+    if (res) res.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
+  if (e.target.closest('#restartBtn')) {
+    state.answers = MODULES.map(m => m.quiz.map(() => null));
+    state.submitted = MODULES.map(() => false);
+    goTo(0);
+    return;
+  }
+  const g = e.target.closest('[data-goto]');
+  if (g) goTo(Number(g.dataset.goto));
+});
+
+$('moduleDots').addEventListener('click', e => {
+  const g = e.target.closest('[data-goto]');
+  if (g && !g.disabled) goTo(Number(g.dataset.goto));
+});
+
+$('prevBtn').addEventListener('click', () => goTo(state.current - 1));
+$('nextBtn').addEventListener('click', () => {
+  if (state.current < SUMMARY && state.submitted[state.current]) goTo(state.current + 1);
+});
+
+goTo(0);
+</script>
+</body>
+</html>
